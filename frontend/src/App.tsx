@@ -4,6 +4,9 @@ import axios from 'axios';
 // Get the API URL from environment variables
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// Logo
+const LOGO = "🩺բժիշկ";
+
 // Define Config type directly since we're having import issues
 interface Config {
   instanceName: string;
@@ -54,7 +57,7 @@ function App() {
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-lg">Loading bjishk...</p>
+          <p className="mt-4 text-lg">Loading {LOGO}...</p>
         </div>
       </div>
     );
@@ -86,10 +89,8 @@ function App() {
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center">
-            <div className="bg-blue-600 text-white p-2 rounded-lg mr-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div className="text-3xl mr-3">
+              {LOGO}
             </div>
             <h1 className="text-xl font-bold text-gray-800">
               {config?.instanceName || 'bjishk'}
@@ -113,7 +114,7 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-500">
-              &copy; {new Date().getFullYear()} bjishk
+              &copy; {new Date().getFullYear()} {LOGO} bjishk
             </div>
             <div className="text-sm text-gray-500">
               Version 1.0.0

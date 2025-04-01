@@ -20,6 +20,8 @@ export interface DB {
   getStatusHistory: (url: string, limit: number) => Promise<ServiceStatus[]>;
   getAllLatestStatuses: () => Promise<ServiceStatus[]>;
   getUptimeReport: (url: string, days: number) => Promise<{ uptime: number }>;
+  recordCheck: (serviceUrl: string, status: any, responseTime: number, source: string, sourcePeer: string) => Promise<void>;
+  recordNotification: (serviceUrl: string, type: string, status: any, sourcePeer: string) => Promise<void>;
   close: () => Promise<void>;
 }
 
@@ -150,6 +152,66 @@ export async function setupDatabase(config: Config): Promise<DB> {
       }
       
       return { uptime: (result.up_count / result.total) * 100 };
+    },
+    
+    async recordCheck(serviceUrl: string, status: any, responseTime: number, source: string, sourcePeer: string): Promise<void> {
+      // Create the peer_checks table if it doesn't exist
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS peer_checks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          service_url TEXT NOT NULL,
+          status TEXT NOT NULL,
+          response_time INTEGER,
+          check_time DATETIME NOT NULL,
+          source TEXT NOT NULL,
+          source_peer TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_peer_checks_service ON peer_checks(service_url);
+        CREATE INDEX IF NOT EXISTS idx_peer_checks_source_peer ON peer_checks(source_peer);
+      `);
+      
+      // Store the check record
+      await db.run(
+        `INSERT INTO peer_checks (service_url, status, response_time, check_time, source, source_peer)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        serviceUrl,
+        JSON.stringify(status),
+        responseTime,
+        new Date().toISOString(),
+        source,
+        sourcePeer
+      );
+      
+      logger.debug(`Recorded peer check from ${sourcePeer} for ${serviceUrl}`);
+    },
+    
+    async recordNotification(serviceUrl: string, type: string, status: any, sourcePeer: string): Promise<void> {
+      // Create the notifications table if it doesn't exist
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          service_url TEXT NOT NULL,
+          type TEXT NOT NULL,
+          status TEXT NOT NULL,
+          notification_time DATETIME NOT NULL,
+          source_peer TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_notifications_service ON notifications(service_url);
+        CREATE INDEX IF NOT EXISTS idx_notifications_source_peer ON notifications(source_peer);
+      `);
+      
+      // Store the notification record
+      await db.run(
+        `INSERT INTO notifications (service_url, type, status, notification_time, source_peer)
+         VALUES (?, ?, ?, ?, ?)`,
+        serviceUrl,
+        type,
+        JSON.stringify(status),
+        new Date().toISOString(),
+        sourcePeer
+      );
+      
+      logger.debug(`Recorded notification from ${sourcePeer} for ${serviceUrl} (${type})`);
     },
     
     async close(): Promise<void> {

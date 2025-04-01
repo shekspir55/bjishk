@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import axios from 'axios';
-import { Config, Service } from '../types';
+import { Config } from '../types';
 import { logger } from '../utils/logger';
 
 interface NotificationOptions {

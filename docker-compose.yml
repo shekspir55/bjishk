@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  bjishk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3015:3015"
+    volumes:
+      - ./.bjishk.toml:/app/.bjishk.toml
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - bjishk-network
+
+networks:
+  bjishk-network:
+    driver: bridge
+
+volumes:
+  data:
+  logs:

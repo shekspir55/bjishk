@@ -75,7 +75,7 @@ const loadConfig = (): Config => {
   try {
     logger.info(`Loading configuration from ${configPath}`);
     const configFile = fs.readFileSync(configPath, 'utf-8');
-    const parsedConfig = TOML.parse(configFile) as TOMLConfig;
+    const parsedConfig = TOML.parse(configFile) as unknown as TOMLConfig;
     
     // Convert from TOML format to our Config interface
     const config: Config = {

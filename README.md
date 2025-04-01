@@ -54,7 +54,7 @@ bjishk is a distributed, federated healthcheck system built with Node.js. It all
    npm start
    ```
 
-5. Visit `http://localhost:3000` (or your configured URL) to access the web interface.
+5. Visit `http://localhost:3015` (or your configured URL) to access the web interface.
 
 ### Docker Installation
 
@@ -69,8 +69,50 @@ bjishk is a distributed, federated healthcheck system built with Node.js. It all
 3. Build and run with Docker:
    ```
    docker build -t bjishk .
-   docker run -d -p 3000:3000 -v $(pwd)/.bjishk.toml:/app/.bjishk.toml -v $(pwd)/data:/app/data --name bjishk bjishk
+   docker run -d -p 3015:3015 -v $(pwd)/.bjishk.toml:/app/.bjishk.toml -v $(pwd)/data:/app/data --name bjishk bjishk
    ```
+
+### Docker Compose Installation
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/bjishk.git
+   cd bjishk
+   ```
+
+2. Create a `.bjishk.toml` file in the root directory with your configuration.
+
+3. Use the provided Makefile for easy management:
+   ```
+   # Build the Docker image
+   make build
+   
+   # Start the containers in detached mode
+   make up
+   
+   # Or start in development mode (with logs to console)
+   make dev
+   
+   # View logs
+   make logs
+   
+   # Stop the containers
+   make down
+   
+   # Update, rebuild, and restart
+   make deploy
+   ```
+
+4. Or manually with Docker Compose:
+   ```
+   # Build and start
+   docker compose up -d
+   
+   # Stop
+   docker compose down
+   ```
+
+5. Visit `http://localhost:3015` to access the web interface.
 
 ## Configuration
 
@@ -80,8 +122,8 @@ bjishk uses a TOML file (`.bjishk.toml`) for configuration. Here's a sample conf
 # Basic instance setup
 name = "my-first-bjishk"
 admin_email = "me@example.com"
-port = 3000
-base_url = "http://localhost:3000"
+port = 3015
+base_url = "http://localhost:3015"
 notification_key = "random-string-for-coordination"
 
 # My services to monitor (URL is the unique identifier, names auto-fetched from page titles)
@@ -124,7 +166,7 @@ npm install
 npm run dev
 ```
 
-The backend will start on port 3000 (or your configured port).
+The backend will start on port 3015 (or your configured port).
 
 ### Frontend
 
