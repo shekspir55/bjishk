@@ -4,12 +4,15 @@ import morgan from 'morgan';
 import cors from 'cors';
 import fs from 'fs';
 import * as TOML from '@iarna/toml';
+import * as punycode from 'punycode';
+import { URL } from 'url';
 import { Config } from './types';
 import { setupDatabase } from './database';
 import { setupMonitoringService } from './services/monitor';
 import { setupFederationService } from './services/federation';
 import { setupApiRoutes } from './routes';
 import { logger } from './utils/logger';
+import { debugTomlFile } from './utils/toml-debug';
 
 // Logo to display at startup
 const LOGO = "🩺բժիշկ";
@@ -48,34 +51,61 @@ interface TOMLConfig {
   };
 }
 
+// Helper function to process internationalized domain names in URLs
+function processUrl(inputUrl: string): string {
+  try {
+    const urlObj = new URL(inputUrl);
+    
+    // Convert IDN hostname to punycode if needed
+    if (/[^\u0000-\u007F]/.test(urlObj.hostname)) {
+      logger.debug(`Converting internationalized domain: ${urlObj.hostname}`);
+      const punycodeHostname = punycode.toASCII(urlObj.hostname);
+      urlObj.hostname = punycodeHostname;
+      logger.debug(`Converted to punycode: ${punycodeHostname}`);
+      return urlObj.toString();
+    }
+    
+    return inputUrl;
+  } catch (err) {
+    logger.error(`Error processing URL ${inputUrl}:`, err);
+    return inputUrl; // Return original URL if processing fails
+  }
+}
+
 // Read configuration from the .bjishk.toml file
 const loadConfig = (): Config => {
-  // Try multiple locations for the config file
-  const possiblePaths = [
-    path.resolve(process.cwd(), '.bjishk.toml'),            // Current working directory
-    path.resolve(process.cwd(), '../.bjishk.toml'),         // Parent directory
-    path.resolve(__dirname, '../../.bjishk.toml'),          // Project root when running from dist
-    path.resolve(__dirname, '../../../.bjishk.toml')        // Project root when running from src
-  ];
+  const configPath = path.resolve(process.cwd(), '.bjishk.toml');
   
-  let configPath = '';
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      configPath = p;
-      break;
-    }
-  }
-  
-  if (!configPath) {
-    logger.error('Configuration file .bjishk.toml not found in any of the expected locations');
-    logger.error('Searched in: ' + possiblePaths.join(', '));
+  if (!fs.existsSync(configPath)) {
+    logger.error(`Configuration file not found at ${configPath}`);
     process.exit(1);
   }
+  
+  // Debug the TOML file structure
+  debugTomlFile(configPath);
   
   try {
     logger.info(`Loading configuration from ${configPath}`);
     const configFile = fs.readFileSync(configPath, 'utf-8');
     const parsedConfig = TOML.parse(configFile) as unknown as TOMLConfig;
+    
+    // Debug raw config structure
+    logger.info(`TOML parse result: ${JSON.stringify(parsedConfig, null, 2)}`);
+    
+    // Check if peers exists and is an array
+    if (!parsedConfig.peers) {
+      logger.warn('No peers array found in config file');
+    } else if (!Array.isArray(parsedConfig.peers)) {
+      logger.warn(`Peers property exists but is not an array: ${typeof parsedConfig.peers}`);
+    } else {
+      logger.info(`Found ${parsedConfig.peers.length} peers in config`);
+    }
+    
+    // Process peer URLs for internationalized domain names
+    const rawPeers = Array.isArray(parsedConfig.peers) ? parsedConfig.peers : [];
+    const processedPeers = rawPeers.map(peerUrl => processUrl(peerUrl));
+    logger.info(`Configured peers: ${processedPeers.length > 0 ? processedPeers.join(', ') : 'none'}`);
+    logger.info(`Raw peers from config: ${JSON.stringify(rawPeers)}`);
     
     // Convert from TOML format to our Config interface
     const config: Config = {
@@ -89,7 +119,7 @@ const loadConfig = (): Config => {
         email: service.email,
         checkInterval: service.check_interval,
       })),
-      peers: parsedConfig.peers || [],
+      peers: processedPeers,
       monitoring: {
         defaultCheckInterval: parsedConfig.monitoring?.default_check_interval || 300,
         retries: parsedConfig.monitoring?.retries || 3,

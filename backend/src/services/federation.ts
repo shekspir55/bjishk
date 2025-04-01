@@ -15,6 +15,25 @@ interface FederationService {
 export function setupFederationService(config: Config, db: DB): FederationService {
   let timer: NodeJS.Timeout | null = null;
   
+  // Ensure config.peers is always an array
+  if (!config.peers) {
+    logger.warn('config.peers is undefined, initializing as empty array');
+    config.peers = [];
+  } else if (!Array.isArray(config.peers)) {
+    logger.warn(`config.peers is not an array (type: ${typeof config.peers}), converting to array`);
+    try {
+      // Try to convert to array if possible
+      if (typeof config.peers === 'string') {
+        config.peers = [config.peers];
+      } else {
+        config.peers = [];
+      }
+    } catch (err) {
+      logger.error(`Failed to convert peers to array: ${err}`);
+      config.peers = [];
+    }
+  }
+  
   // Process URL to handle IDNs with punycode
   function processUrl(inputUrl: string): string {
     try {
@@ -122,7 +141,9 @@ export function setupFederationService(config: Config, db: DB): FederationServic
   
   return {
     startFederation() {
-      if (config.peers.length === 0) {
+      logger.info(`Federation service initialized with peers config: ${JSON.stringify(config.peers)}`);
+      
+      if (!config.peers || config.peers.length === 0) {
         logger.info('No peers configured, federation service not started');
         return;
       }
