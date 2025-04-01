@@ -1,4 +1,6 @@
 import axios from 'axios';
+import * as punycode from 'punycode';
+import { URL } from 'url';
 import { Config } from '../types';
 import { DB, ServiceStatus } from '../database';
 import { logger } from '../utils/logger';
@@ -13,10 +15,34 @@ interface FederationService {
 export function setupFederationService(config: Config, db: DB): FederationService {
   let timer: NodeJS.Timeout | null = null;
   
+  // Process URL to handle IDNs with punycode
+  function processUrl(inputUrl: string): string {
+    try {
+      const urlObj = new URL(inputUrl);
+      
+      // Convert IDN hostname to punycode if needed
+      if (/[^\u0000-\u007F]/.test(urlObj.hostname)) {
+        logger.debug(`Converting internationalized domain: ${urlObj.hostname}`);
+        const punycodeHostname = punycode.toASCII(urlObj.hostname);
+        urlObj.hostname = punycodeHostname;
+        logger.debug(`Converted to punycode: ${punycodeHostname}`);
+        return urlObj.toString();
+      }
+      
+      return inputUrl;
+    } catch (err) {
+      logger.error(`Error processing URL ${inputUrl}: ${err}`);
+      return inputUrl; // Return original URL if processing fails
+    }
+  }
+  
   async function checkPeer(peerUrl: string): Promise<boolean> {
     try {
-      logger.info(`Checking peer: ${peerUrl}`);
-      const response = await axios.get(`${peerUrl}/api/health`, {
+      // Process URL for internationalized domain names
+      const processedUrl = processUrl(peerUrl);
+      logger.info(`Checking peer: ${peerUrl} -> ${processedUrl}`);
+      
+      const response = await axios.get(`${processedUrl}/api/health`, {
         timeout: 10000,
         headers: {
           'X-BJISHK-NODE': config.baseUrl,
@@ -33,7 +59,10 @@ export function setupFederationService(config: Config, db: DB): FederationServic
   
   async function fetchStatuses(peerUrl: string): Promise<ServiceStatus[]> {
     try {
-      const response = await axios.get(`${peerUrl}/api/services/statuses`, {
+      // Process URL for internationalized domain names
+      const processedUrl = processUrl(peerUrl);
+      
+      const response = await axios.get(`${processedUrl}/api/services/statuses`, {
         timeout: 15000,
         headers: {
           'X-BJISHK-NODE': config.baseUrl,

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { processUrl, displayUrl } from './url';
 
 // Get the API URL from environment variables
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -42,7 +43,9 @@ export const getServiceStatuses = async () => {
 
 export const getServiceStatus = async (url: string) => {
   try {
-    const encodedUrl = encodeURIComponent(url);
+    // Process URL for internationalized domain names
+    const processedUrl = processUrl(url);
+    const encodedUrl = encodeURIComponent(processedUrl);
     const response = await api.get(`/api/services/${encodedUrl}/status`);
     return response.data;
   } catch (error) {
@@ -53,7 +56,9 @@ export const getServiceStatus = async (url: string) => {
 
 export const getServiceHistory = async (url: string, limit: number = 100) => {
   try {
-    const encodedUrl = encodeURIComponent(url);
+    // Process URL for internationalized domain names
+    const processedUrl = processUrl(url);
+    const encodedUrl = encodeURIComponent(processedUrl);
     const response = await api.get(`/api/services/${encodedUrl}/history?limit=${limit}`);
     return response.data;
   } catch (error) {
@@ -64,7 +69,9 @@ export const getServiceHistory = async (url: string, limit: number = 100) => {
 
 export const getServiceUptime = async (url: string, days: number = 7) => {
   try {
-    const encodedUrl = encodeURIComponent(url);
+    // Process URL for internationalized domain names
+    const processedUrl = processUrl(url);
+    const encodedUrl = encodeURIComponent(processedUrl);
     const response = await api.get(`/api/services/${encodedUrl}/uptime?days=${days}`);
     return response.data;
   } catch (error) {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardSummary, Service, StatusResponse, Peer } from '../types';
 import { getServices, getServiceStatuses, getPeers } from '../utils/api';
+import { displayUrl } from '../utils/url';
 
 interface DashboardProps {
   refreshInterval: number;
@@ -204,67 +205,63 @@ function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps)
         </div>
       </div>
       
-      {/* Services Section */}
-      <section className="mb-10">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Services</h2>
-        
-        {services.length === 0 ? (
-          <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
-            No services configured. Add services in your .bjishk.toml file.
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Service
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Response Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Check
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {services.map((service) => {
-                  const status = statuses.find(s => s.url === service.url);
-                  return (
-                    <tr key={service.url} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-blue-600">
-                          <a href={service.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                            {status?.title || service.url}
-                          </a>
-                        </div>
-                        <div className="text-sm text-gray-500 truncate" style={{ maxWidth: '300px' }}>
-                          {service.url}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs ${status?.isUp ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          {status?.isUp ? 'Up' : 'Down'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {status?.responseTime ? `${status.responseTime}ms` : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {status?.lastChecked ? new Date(status.lastChecked).toLocaleString() : 'Never'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {/* Services Table */}
+      <div className="bg-white rounded-lg shadow mb-8">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800">Service Status</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Service
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Response Time
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Checked
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {services.map(service => {
+                const status = statuses.find(s => s.url === service.url);
+                return (
+                  <tr key={service.url}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <a 
+                        href={service.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {/* Display human-readable internationalized domain name */}
+                        {status?.title || displayUrl(service.url)}
+                      </a>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status?.isUp ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {status?.isUp ? 'UP' : 'DOWN'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {status?.responseTime ? `${status.responseTime}ms` : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {status?.lastChecked ? new Date(status.lastChecked).toLocaleString() : '-'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
       
       {showAllSections && (
         <>

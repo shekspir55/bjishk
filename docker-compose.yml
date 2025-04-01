@@ -14,13 +14,3 @@ services:
     environment:
       - NODE_ENV=production
     restart: unless-stopped
-    networks:
-      - bjishk-network
-
-networks:
-  bjishk-network:
-    driver: bridge
-
-volumes:
-  data:
-  logs:

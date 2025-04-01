@@ -7,7 +7,7 @@ notification_key = "random-string-for-coordination"
 
 # My services to monitor (URL is the unique identifier, names auto-fetched from page titles)
 [[services]]
-url = "https://example.com"
+url = "https://թ.չոլ.հայ/"
 email = "me@example.com"
 check_interval = 300
 

@@ -1,5 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import * as punycode from 'punycode';
+import { URL } from 'url';
 import { Config } from '../types';
 import { DB, ServiceStatus } from '../database';
 import { logger } from '../utils/logger';
@@ -27,8 +29,12 @@ export function setupMonitoringService(config: Config, db: DB): MonitoringServic
     let error: string | null = null;
     
     try {
+      // Process URL for internationalized domain names
+      const processedUrl = processUrl(url);
+      logger.debug(`Processing URL: ${url} -> ${processedUrl}`);
+      
       // Use axios with timeout (instead of fetch)
-      const response = await axios.get(url, {
+      const response = await axios.get(processedUrl, {
         timeout: 30000, // 30 second timeout
         validateStatus: () => true, // Don't throw on non-2xx status codes
       });
@@ -106,6 +112,27 @@ export function setupMonitoringService(config: Config, db: DB): MonitoringServic
     }
     
     return status;
+  }
+  
+  // Process URL to handle IDNs with punycode
+  function processUrl(inputUrl: string): string {
+    try {
+      const urlObj = new URL(inputUrl);
+      
+      // Convert IDN hostname to punycode if needed
+      if (/[^\u0000-\u007F]/.test(urlObj.hostname)) {
+        logger.debug(`Converting internationalized domain: ${urlObj.hostname}`);
+        const punycodeHostname = punycode.toASCII(urlObj.hostname);
+        urlObj.hostname = punycodeHostname;
+        logger.debug(`Converted to punycode: ${punycodeHostname}`);
+        return urlObj.toString();
+      }
+      
+      return inputUrl;
+    } catch (err) {
+      logger.error(`Error processing URL ${inputUrl}: ${err}`);
+      return inputUrl; // Return original URL if processing fails
+    }
   }
   
   // Extract title from HTML

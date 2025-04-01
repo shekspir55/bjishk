@@ -1,13 +1,43 @@
 import nodemailer from 'nodemailer';
 import axios from 'axios';
+import * as punycode from 'punycode';
+import { URL } from 'url';
 import { Config } from '../types';
 import { logger } from '../utils/logger';
+
+// Define the Service interface locally
+export interface Service {
+  url: string;
+  email: string;
+  checkInterval: number;
+}
 
 interface NotificationOptions {
   to: string;
   subject: string;
   message: string;
   config: Config;
+}
+
+// Process URL to handle IDNs with punycode
+function processUrl(inputUrl: string): string {
+  try {
+    const urlObj = new URL(inputUrl);
+    
+    // Convert IDN hostname to punycode if needed
+    if (/[^\u0000-\u007F]/.test(urlObj.hostname)) {
+      logger.debug(`Converting internationalized domain: ${urlObj.hostname}`);
+      const punycodeHostname = punycode.toASCII(urlObj.hostname);
+      urlObj.hostname = punycodeHostname;
+      logger.debug(`Converted to punycode: ${punycodeHostname}`);
+      return urlObj.toString();
+    }
+    
+    return inputUrl;
+  } catch (err) {
+    logger.error(`Error processing URL ${inputUrl}: ${err}`);
+    return inputUrl; // Return original URL if processing fails
+  }
 }
 
 // Send a notification email for a service status change
@@ -77,7 +107,10 @@ export async function notifyPeers(
   // Notify each peer
   for (const peerUrl of config.peers) {
     try {
-      await axios.post(`${peerUrl}/peers/status-update`, notificationData, {
+      // Convert internationalized domain names to punycode
+      const processedUrl = processUrl(peerUrl);
+      
+      await axios.post(`${processedUrl}/peers/status-update`, notificationData, {
         headers: {
           'Content-Type': 'application/json',
           'X-Bjishk-Node': config.baseUrl,
@@ -118,7 +151,10 @@ export async function notifyPeersAboutNotification(
   // Notify each peer
   for (const peerUrl of config.peers) {
     try {
-      await axios.post(`${peerUrl}/peers/notification`, notificationData, {
+      // Convert internationalized domain names to punycode
+      const processedUrl = processUrl(peerUrl);
+      
+      await axios.post(`${processedUrl}/peers/notification`, notificationData, {
         headers: {
           'Content-Type': 'application/json',
           'X-Bjishk-Node': config.baseUrl,
