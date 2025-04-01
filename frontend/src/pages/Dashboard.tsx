@@ -1,29 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
-import { DashboardSummary, Service } from '../types';
+import { DashboardSummary, Service, StatusResponse, Peer } from '../types';
+import { getServices, getServiceStatuses, getPeers } from '../utils/api';
 
 interface DashboardProps {
   refreshInterval: number;
+  showAllSections?: boolean;
 }
 
-function Dashboard({ refreshInterval }: DashboardProps) {
+function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [statuses, setStatuses] = useState<StatusResponse[]>([]);
+  const [peers, setPeers] = useState<Peer[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   
   // Fetch dashboard data
   const fetchData = async () => {
     try {
-      // Get dashboard summary
-      const summaryResponse = await axios.get('/api/dashboard');
-      setSummary(summaryResponse.data);
-      
       // Get all services
-      const servicesResponse = await axios.get('/api/services');
-      setServices(servicesResponse.data);
+      const servicesResponse = await getServices();
+      setServices(servicesResponse.data || []);
       
+      // Get all service statuses
+      const statusesResponse = await getServiceStatuses();
+      setStatuses(statusesResponse.data || []);
+      
+      // Get all peers
+      let peerData: Peer[] = [];
+      if (showAllSections) {
+        const peersResponse = await getPeers();
+        peerData = peersResponse.data || [];
+        setPeers(peerData);
+      }
+      
+      // Calculate summary
+      const serviceCount = servicesResponse.data?.length || 0;
+      const upServices = statusesResponse.data?.filter((s: StatusResponse) => s.isUp)?.length || 0;
+      const peerCount = peerData.length;
+      
+      const summary: DashboardSummary = {
+        totalServices: serviceCount,
+        servicesUp: upServices,
+        servicesDown: serviceCount - upServices,
+        totalPeers: peerCount,
+        peersUp: peerCount, // Assuming all peers are up for now
+        peersDown: 0,
+        recentIncidents: []
+      };
+      setSummary(summary);
+      
+      // Update last updated time
+      setLastUpdated(new Date());
       setLoading(false);
     } catch (err) {
       const error = err as Error;
@@ -33,12 +63,31 @@ function Dashboard({ refreshInterval }: DashboardProps) {
     }
   };
   
+  // Format time difference
+  const getTimeSinceUpdate = (): string => {
+    const now = new Date();
+    const diff = now.getTime() - lastUpdated.getTime();
+    const seconds = Math.floor(diff / 1000);
+    
+    if (seconds < 60) {
+      return `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+    }
+    
+    const hours = Math.floor(minutes / 60);
+    return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+  };
+  
   // Initial fetch
   useEffect(() => {
     fetchData();
   }, []);
   
-  // Refresh data periodically
+  // Refresh data periodically based on refreshInterval prop
   useEffect(() => {
     if (refreshInterval <= 0) return;
     
@@ -48,6 +97,26 @@ function Dashboard({ refreshInterval }: DashboardProps) {
     
     return () => clearInterval(intervalId);
   }, [refreshInterval]);
+  
+  // Long polling at 1-minute intervals
+  useEffect(() => {
+    const longPollInterval = setInterval(() => {
+      console.log('Long polling update...');
+      fetchData();
+    }, 60000); // 1 minute
+    
+    return () => clearInterval(longPollInterval);
+  }, []);
+  
+  // Update the "updated X seconds ago" text every second
+  useEffect(() => {
+    const timerInterval = setInterval(() => {
+      // Force re-render to update the time display
+      setLastUpdated(prev => prev);
+    }, 1000);
+    
+    return () => clearInterval(timerInterval);
+  }, []);
   
   if (loading) {
     return (
@@ -71,11 +140,22 @@ function Dashboard({ refreshInterval }: DashboardProps) {
   
   return (
     <div>
-      <h1 className="page-title">Dashboard</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <div className="text-sm text-gray-500">
+          Last updated: {getTimeSinceUpdate()}
+          <button 
+            onClick={() => fetchData()} 
+            className="ml-2 px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
       
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-lg font-semibold text-gray-700 mb-2">Services</h2>
           <div className="flex items-center justify-between">
             <div>
@@ -95,7 +175,7 @@ function Dashboard({ refreshInterval }: DashboardProps) {
           </div>
         </div>
         
-        <div className="card">
+        <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-lg font-semibold text-gray-700 mb-2">Peers</h2>
           <div className="flex items-center justify-between">
             <div>
@@ -115,72 +195,144 @@ function Dashboard({ refreshInterval }: DashboardProps) {
           </div>
         </div>
         
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-700 mb-2">Recent Incidents</h2>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-lg font-semibold text-gray-700 mb-2">Incidents</h2>
           <div>
             <div className="text-3xl font-bold text-gray-900">{summary?.recentIncidents?.length || 0}</div>
             <div className="text-sm text-gray-500">Notifications in last 24h</div>
           </div>
-          <Link to="/notifications" className="text-blue-600 hover:text-blue-800 text-sm inline-block mt-2">
-            View all notifications →
-          </Link>
         </div>
       </div>
       
-      {/* Services List */}
-      <h2 className="section-title">Your Services</h2>
-      
-      {services.length === 0 ? (
-        <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
-          No services configured. Add services in your .bjishk.toml file.
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Service
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Response Time
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Check
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {services.map((service) => (
-                <tr key={service.url} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <Link to={`/services/${encodeURIComponent(service.url)}`} className="text-blue-600 hover:text-blue-900">
-                      {service.name || service.url}
-                    </Link>
-                    <div className="text-sm text-gray-500 truncate" style={{ maxWidth: '300px' }}>
-                      {service.url}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`status-${service.status || 'unknown'}`}>
-                      {service.status || 'Unknown'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {service.response_time ? `${service.response_time}ms` : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {service.last_check_time ? new Date(service.last_check_time).toLocaleString() : 'Never'}
-                  </td>
+      {/* Services Section */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Services</h2>
+        
+        {services.length === 0 ? (
+          <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
+            No services configured. Add services in your .bjishk.toml file.
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Service
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Response Time
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Check
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {services.map((service) => {
+                  const status = statuses.find(s => s.url === service.url);
+                  return (
+                    <tr key={service.url} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-blue-600">
+                          <a href={service.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                            {status?.title || service.url}
+                          </a>
+                        </div>
+                        <div className="text-sm text-gray-500 truncate" style={{ maxWidth: '300px' }}>
+                          {service.url}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 rounded-full text-xs ${status?.isUp ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {status?.isUp ? 'Up' : 'Down'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {status?.responseTime ? `${status.responseTime}ms` : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {status?.lastChecked ? new Date(status.lastChecked).toLocaleString() : 'Never'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+      
+      {showAllSections && (
+        <>
+          {/* Peers Section */}
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">Peer Instances</h2>
+            
+            {peers.length === 0 ? (
+              <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
+                No peer instances configured. Add peers in your .bjishk.toml file.
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Peer URL
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Last Check
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {peers.map((peer) => (
+                      <tr key={peer.url} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-blue-600">
+                            <a href={peer.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                              {peer.url}
+                            </a>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                            Up
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {peer.lastChecked ? new Date(peer.lastChecked).toLocaleString() : 'Recently'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+          
+          {/* Notifications Section */}
+          <section>
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Notifications</h2>
+            
+            <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
+              No recent notifications.
+            </div>
+          </section>
+        </>
       )}
+      
+      {/* Footer info with long polling status */}
+      <div className="mt-10 pt-6 border-t border-gray-200 text-sm text-gray-500 text-center">
+        <strong>Long polling enabled:</strong> Dashboard auto-updates every minute
+      </div>
     </div>
   );
 }

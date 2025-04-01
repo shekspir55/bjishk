@@ -11,6 +11,9 @@ import { setupFederationService } from './services/federation';
 import { setupApiRoutes } from './routes';
 import { logger } from './utils/logger';
 
+// Logo to display at startup
+const LOGO = "🩺բժիշկ";
+
 interface TOMLConfig {
   name: string;
   admin_email: string;
@@ -151,8 +154,11 @@ async function startServer() {
   
   // Start the server
   const server = app.listen(config.port, () => {
-    logger.info(`bjishk server started on port ${config.port}`);
-    logger.info(`Web interface available at ${config.baseUrl}`);
+    // Display logo and server info
+    console.log(`\n${LOGO} ${config.name}`);
+    logger.info(`${LOGO} bjishk server started on port ${config.port}`);
+    logger.info(`${LOGO} Web interface available at ${config.baseUrl}`);
+    logger.info(`${LOGO} Instance name: ${config.name}`);
   });
   
   // Initialize monitoring service

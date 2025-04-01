@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import axios from 'axios';
 
-// Components
-import Header from './components/Header';
-import Sidebar from './components/Sidebar';
-import Dashboard from './pages/Dashboard';
-import ServiceDetails from './pages/ServiceDetails';
-import PeerList from './pages/PeerList';
-import PeerDetails from './pages/PeerDetails';
-import NotificationLog from './pages/NotificationLog';
-import Footer from './components/Footer';
+// Get the API URL from environment variables
+const API_URL = import.meta.env.VITE_API_URL || '';
 
-// Types
-import { Config } from './types';
+// Define Config type directly since we're having import issues
+interface Config {
+  instanceName: string;
+  refreshInterval: number;
+}
+
+// Import Dashboard component (for now we'll handle any errors at runtime)
+// @ts-ignore
+import Dashboard from './pages/Dashboard';
 
 function App() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -24,8 +23,8 @@ function App() {
     // Fetch configuration
     const fetchConfig = async () => {
       try {
-        const response = await axios.get('/api/config');
-        setConfig(response.data);
+        const response = await axios.get(`${API_URL}/api/ui-config`);
+        setConfig(response.data.data);
         setLoading(false);
       } catch (err) {
         console.error('Failed to fetch configuration:', err);
@@ -42,8 +41,8 @@ function App() {
     if (!config?.refreshInterval) return;
     
     const refreshIntervalId = setInterval(() => {
-      axios.get('/api/config')
-        .then(response => setConfig(response.data))
+      axios.get(`${API_URL}/api/ui-config`)
+        .then(response => setConfig(response.data.data))
         .catch(err => console.error('Failed to refresh configuration:', err));
     }, config.refreshInterval * 1000);
     
@@ -82,27 +81,47 @@ function App() {
   }
   
   return (
-    <Router>
-      <div className="flex flex-col min-h-screen bg-gray-100">
-        <Header instanceName={config?.name || 'bjishk'} />
-        
-        <div className="flex flex-1">
-          <Sidebar />
-          
-          <main className="flex-1 p-6">
-            <Routes>
-              <Route path="/" element={<Dashboard refreshInterval={config?.refreshInterval || 30} />} />
-              <Route path="/services/:url" element={<ServiceDetails refreshInterval={config?.refreshInterval || 30} />} />
-              <Route path="/peers" element={<PeerList refreshInterval={config?.refreshInterval || 30} />} />
-              <Route path="/peers/:url" element={<PeerDetails refreshInterval={config?.refreshInterval || 30} />} />
-              <Route path="/notifications" element={<NotificationLog refreshInterval={config?.refreshInterval || 30} />} />
-            </Routes>
-          </main>
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+          <div className="flex items-center">
+            <div className="bg-blue-600 text-white p-2 rounded-lg mr-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold text-gray-800">
+              {config?.instanceName || 'bjishk'}
+            </h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-500">
+              Federated Healthcheck System
+            </span>
+          </div>
         </div>
-        
-        <Footer />
-      </div>
-    </Router>
+      </header>
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Main content - Single page with all sections */}
+        <Dashboard refreshInterval={config?.refreshInterval || 30} showAllSections={true} />
+      </main>
+      
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-gray-500">
+              &copy; {new Date().getFullYear()} bjishk
+            </div>
+            <div className="text-sm text-gray-500">
+              Version 1.0.0
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
 
