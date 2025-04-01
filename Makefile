@@ -32,7 +32,7 @@ deploy:
 	make up
 
 deploy-prod:
-	ssh bjishk "cd ./bjishk && make deploy"
+	ssh chol "cd ./bjishk && make deploy"
 
 commit-and-deploy:
 	git add .
