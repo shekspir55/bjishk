@@ -54,6 +54,8 @@ export interface Peer {
   url: string;
   isUp?: boolean;
   lastChecked?: string;
+  error?: string;
+  services?: number;
 }
 
 // Config types

@@ -1,15 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardSummary, Service, StatusResponse, Peer } from '../types';
-import { getServices, getServiceStatuses, getPeers } from '../utils/api';
+import { getServices, getServiceStatuses, getPeers, getServiceHistoryDots, getPeerServices } from '../utils/api';
 import { displayUrl } from '../utils/url';
+
+// Separate component for history dots to properly handle hooks
+function ServiceHistoryDots({ service }: { service: Service }) {
+  const [historyDots, setHistoryDots] = useState<{timestamp: string, isUp: boolean}[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  
+  useEffect(() => {
+    const fetchHistoryDots = async () => {
+      try {
+        const response = await getServiceHistoryDots(service.url, 10);
+        setHistoryDots(response.data || []);
+      } catch (error) {
+        console.error(`Failed to fetch history dots for ${service.url}`, error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchHistoryDots();
+  }, [service.url]);
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-5">
+        <div className="animate-pulse w-20 h-2 bg-gray-200 rounded"></div>
+      </div>
+    );
+  }
+  
+  if (historyDots.length === 0) {
+    return (
+      <div className="text-xs text-gray-400">No history available</div>
+    );
+  }
+  
+  return (
+    <div className="flex flex-row-reverse items-center">
+      {historyDots.map((dot, index) => (
+        <div 
+          key={index} 
+          className={`w-2 h-2 rounded-full mx-0.5 ${dot.isUp ? 'bg-green-500' : 'bg-red-500'}`} 
+          title={`${dot.isUp ? 'Up' : 'Down'} at ${new Date(dot.timestamp).toLocaleString()}`}
+        />
+      ))}
+    </div>
+  );
+}
 
 interface DashboardProps {
   refreshInterval: number;
   showAllSections?: boolean;
 }
 
-function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps) {
+function Dashboard({ refreshInterval, showAllSections = true }: DashboardProps) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [statuses, setStatuses] = useState<StatusResponse[]>([]);
@@ -31,24 +78,23 @@ function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps)
       
       // Get all peers
       let peerData: Peer[] = [];
-      if (showAllSections) {
-        const peersResponse = await getPeers();
-        peerData = peersResponse.data || [];
-        setPeers(peerData);
-      }
+      const peersResponse = await getPeers();
+      peerData = peersResponse.data || [];
+      setPeers(peerData);
       
       // Calculate summary
       const serviceCount = servicesResponse.data?.length || 0;
       const upServices = statusesResponse.data?.filter((s: StatusResponse) => s.isUp)?.length || 0;
       const peerCount = peerData.length;
+      const peersUp = peerData.filter(p => p.isUp).length;
       
       const summary: DashboardSummary = {
         totalServices: serviceCount,
         servicesUp: upServices,
         servicesDown: serviceCount - upServices,
         totalPeers: peerCount,
-        peersUp: peerCount, // Assuming all peers are up for now
-        peersDown: 0,
+        peersUp: peersUp,
+        peersDown: peerCount - peersUp,
         recentIncidents: []
       };
       setSummary(summary);
@@ -64,7 +110,7 @@ function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps)
     }
   };
   
-  // Format time difference
+  // Format time difference for last updated
   const getTimeSinceUpdate = (): string => {
     const now = new Date();
     const diff = now.getTime() - lastUpdated.getTime();
@@ -81,6 +127,33 @@ function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps)
     
     const hours = Math.floor(minutes / 60);
     return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+  };
+  
+  // Format time difference for last checked
+  const getTimeSinceLastCheck = (lastCheckedStr: string | undefined): string => {
+    if (!lastCheckedStr) return 'Never';
+    
+    const lastChecked = new Date(lastCheckedStr);
+    const now = new Date();
+    const diff = now.getTime() - lastChecked.getTime();
+    const seconds = Math.floor(diff / 1000);
+    
+    if (seconds < 60) {
+      return `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+    }
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+    }
+    
+    const days = Math.floor(hours / 24);
+    return `${days} day${days !== 1 ? 's' : ''} ago`;
   };
   
   // Initial fetch
@@ -200,7 +273,7 @@ function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps)
           <h2 className="text-lg font-semibold text-gray-700 mb-2">Incidents</h2>
           <div>
             <div className="text-3xl font-bold text-gray-900">{summary?.recentIncidents?.length || 0}</div>
-            <div className="text-sm text-gray-500">Notifications in last 24h</div>
+            <div className="text-sm text-gray-500">Recent incidents</div>
           </div>
         </div>
       </div>
@@ -226,6 +299,9 @@ function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps)
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Last Checked
                 </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  History
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -240,20 +316,35 @@ function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps)
                         rel="noopener noreferrer" 
                         className="text-blue-600 hover:text-blue-800 hover:underline"
                       >
-                        {/* Display human-readable internationalized domain name */}
-                        {status?.title || displayUrl(service.url)}
+                        {/* Display human-readable internationalized domain name with title */}
+                        {status?.title ? (
+                          <>
+                            <div>{status.title}</div>
+                            <div className="text-xs text-gray-500">{displayUrl(service.url)}</div>
+                          </>
+                        ) : (
+                          displayUrl(service.url)
+                        )}
                       </a>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status?.isUp ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {status?.isUp ? 'UP' : 'DOWN'}
                       </span>
+                      {!status?.isUp && status?.error && (
+                        <div className="mt-1 text-xs text-red-600 max-w-xs overflow-hidden text-ellipsis">
+                          {status.error}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {status?.responseTime ? `${status.responseTime}ms` : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {status?.lastChecked ? new Date(status.lastChecked).toLocaleString() : '-'}
+                      {status?.lastChecked ? getTimeSinceLastCheck(status.lastChecked) : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <ServiceHistoryDots service={service} />
                     </td>
                   </tr>
                 );
@@ -263,74 +354,205 @@ function Dashboard({ refreshInterval, showAllSections = false }: DashboardProps)
         </div>
       </div>
       
-      {showAllSections && (
-        <>
-          {/* Peers Section */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Peer Instances</h2>
-            
-            {peers.length === 0 ? (
-              <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
-                No peer instances configured. Add peers in your .bjishk.toml file.
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Peer URL
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Last Check
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {peers.map((peer) => (
-                      <tr key={peer.url} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-blue-600">
-                            <a href={peer.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                              {peer.url}
-                            </a>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                            Up
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {peer.lastChecked ? new Date(peer.lastChecked).toLocaleString() : 'Recently'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-          
-          {/* Notifications Section */}
-          <section>
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Notifications</h2>
-            
-            <div className="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
-              No recent notifications.
-            </div>
-          </section>
-        </>
-      )}
-      
-      {/* Footer info with long polling status */}
-      <div className="mt-10 pt-6 border-t border-gray-200 text-sm text-gray-500 text-center">
-        <strong>Long polling enabled:</strong> Dashboard auto-updates every minute
+      {/* Peers Table */}
+      <div className="bg-white rounded-lg shadow mb-8">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800">Peer Instances</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Peer URL
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Checked
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Services
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {peers.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
+                    No peer instances configured
+                  </td>
+                </tr>
+              ) : (
+                peers.map((peer) => (
+                  <PeerRow key={peer.url} peer={peer} />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
+  );
+}
+
+// Peer component with expandable services list
+function PeerRow({ peer }: { peer: Peer }) {
+  const [expanded, setExpanded] = useState(false);
+  const [peerServices, setPeerServices] = useState<StatusResponse[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const toggleExpanded = async () => {
+    if (!expanded && peerServices.length === 0) {
+      setLoading(true);
+      try {
+        // Try to fetch actual peer services using the API
+        const response = await getPeerServices(peer.url);
+        if (response.success && Array.isArray(response.data)) {
+          setPeerServices(response.data);
+        } else {
+          setPeerServices([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch peer services', error);
+        setPeerServices([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    setExpanded(!expanded);
+  };
+  
+  // Format time difference for last checked
+  const getTimeSinceLastCheck = (lastCheckedStr: string | undefined): string => {
+    if (!lastCheckedStr) return 'Never';
+    
+    const lastChecked = new Date(lastCheckedStr);
+    const now = new Date();
+    const diff = now.getTime() - lastChecked.getTime();
+    const seconds = Math.floor(diff / 1000);
+    
+    if (seconds < 60) {
+      return `${seconds}s ago`;
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes}m ago`;
+    }
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      return `${hours}h ago`;
+    }
+    
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  return (
+    <>
+      <tr key={peer.url} className={expanded ? "bg-gray-50" : ""}>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <div className="flex items-center">
+            <button 
+              onClick={toggleExpanded}
+              className="mr-2 p-1 rounded-full hover:bg-gray-200 focus:outline-none"
+              aria-label={expanded ? "Collapse" : "Expand"}
+            >
+              <svg 
+                className={`h-4 w-4 transition-transform ${expanded ? 'transform rotate-90' : ''}`} 
+                fill="currentColor" 
+                viewBox="0 0 20 20"
+              >
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <a 
+              href={peer.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              <div>{displayUrl(peer.url)}</div>
+              {/* Show punycode version only if different from display version */}
+              {peer.url !== displayUrl(peer.url) && (
+                <div className="text-xs text-gray-500">(punycode: {peer.url})</div>
+              )}
+            </a>
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${peer.isUp ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+            {peer.isUp ? 'UP' : 'DOWN'}
+          </span>
+          {!peer.isUp && peer.error && (
+            <div className="mt-1 text-xs text-red-600 max-w-xs overflow-hidden text-ellipsis">
+              {peer.error}
+            </div>
+          )}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          {peer.lastChecked ? getTimeSinceLastCheck(peer.lastChecked) : 'Never'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          {peer.services !== undefined ? peer.services : '-'}
+        </td>
+      </tr>
+      
+      {/* Expandable services section */}
+      {expanded && (
+        <tr>
+          <td colSpan={4} className="px-0 py-0 border-b border-gray-200">
+            <div className="bg-gray-50 px-8 py-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Services from this peer:</h3>
+              
+              {loading ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                  <span className="ml-2 text-sm text-gray-600">Loading services...</span>
+                </div>
+              ) : peerServices.length > 0 ? (
+                <div className="bg-white shadow overflow-hidden rounded-md">
+                  <ul className="divide-y divide-gray-200">
+                    {peerServices.map(service => (
+                      <li key={service.url} className="px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium">{service.title || displayUrl(service.url)}</div>
+                            <div className="text-xs text-gray-500">{displayUrl(service.url)}</div>
+                          </div>
+                          <div className="flex items-center">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${service.isUp ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                              {service.isUp ? 'UP' : 'DOWN'}
+                            </span>
+                            <span className="ml-3 text-xs text-gray-500">
+                              {service.responseTime ? `${service.responseTime}ms` : '-'}
+                            </span>
+                            <span className="ml-3 text-xs text-gray-500">
+                              {getTimeSinceLastCheck(service.lastChecked)}
+                            </span>
+                          </div>
+                        </div>
+                        {!service.isUp && service.error && (
+                          <div className="mt-1 text-xs text-red-600">
+                            {service.error}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 py-2">No services available from this peer.</div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

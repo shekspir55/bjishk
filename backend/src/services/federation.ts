@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 
 interface FederationService {
   startFederation: () => void;
-  checkPeers: () => Promise<{ url: string; isUp: boolean; }[]>;
+  checkPeers: () => Promise<{ url: string; isUp: boolean; error?: string; services?: number; lastChecked: string; }[]>;
   fetchPeerStatuses: (peerUrl: string) => Promise<ServiceStatus[]>;
   shutdown: () => void;
 }
@@ -55,7 +55,7 @@ export function setupFederationService(config: Config, db: DB): FederationServic
     }
   }
   
-  async function checkPeer(peerUrl: string): Promise<boolean> {
+  async function checkPeer(peerUrl: string): Promise<{ isUp: boolean; error?: string; services?: number }> {
     try {
       // Process URL for internationalized domain names
       const processedUrl = processUrl(peerUrl);
@@ -69,10 +69,48 @@ export function setupFederationService(config: Config, db: DB): FederationServic
         }
       });
       
-      return response.status === 200;
-    } catch (error) {
-      logger.error(`Failed to connect to peer ${peerUrl}:`, error);
-      return false;
+      // If we get a successful response, try to get the services count
+      let servicesCount: number | undefined = undefined;
+      try {
+        const servicesResponse = await axios.get(`${processedUrl}/api/instance`, {
+          timeout: 5000,
+          headers: {
+            'X-BJISHK-NODE': config.baseUrl,
+            'X-BJISHK-KEY': config.notificationKey
+          }
+        });
+        
+        if (servicesResponse.status === 200 && servicesResponse.data && servicesResponse.data.data) {
+          servicesCount = servicesResponse.data.data.services || 0;
+        }
+      } catch (servicesError) {
+        logger.warn(`Could not fetch services count from peer ${peerUrl}: ${servicesError}`);
+      }
+      
+      return { 
+        isUp: response.status === 200,
+        services: servicesCount
+      };
+    } catch (error: any) {
+      let errorMessage = 'Unknown error';
+      
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Connection timed out';
+      } else if (error.code === 'ENOTFOUND') {
+        errorMessage = 'DNS resolution failed';
+      } else if (error.response) {
+        errorMessage = `HTTP error: ${error.response.status}`;
+      } else if (error.request) {
+        errorMessage = 'No response received';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      logger.error(`Failed to connect to peer ${peerUrl}: ${errorMessage}`);
+      return { 
+        isUp: false,
+        error: errorMessage
+      };
     }
   }
   
@@ -110,10 +148,10 @@ export function setupFederationService(config: Config, db: DB): FederationServic
   
   async function runFederationCheck() {
     for (const peerUrl of config.peers) {
-      const isUp = await checkPeer(peerUrl);
-      logger.info(`Peer ${peerUrl} is ${isUp ? 'UP' : 'DOWN'}`);
+      const peerStatus = await checkPeer(peerUrl);
+      logger.info(`Peer ${peerUrl} is ${peerStatus.isUp ? 'UP' : 'DOWN'}`);
       
-      if (isUp) {
+      if (peerStatus.isUp) {
         // Fetch service statuses from peer
         const statuses = await fetchStatuses(peerUrl);
         logger.info(`Received ${statuses.length} status updates from peer ${peerUrl}`);
@@ -155,8 +193,14 @@ export function setupFederationService(config: Config, db: DB): FederationServic
     async checkPeers() {
       const results = [];
       for (const peerUrl of config.peers) {
-        const isUp = await checkPeer(peerUrl);
-        results.push({ url: peerUrl, isUp });
+        const peerStatus = await checkPeer(peerUrl);
+        results.push({ 
+          url: peerUrl,
+          isUp: peerStatus.isUp,
+          error: peerStatus.error,
+          services: peerStatus.services,
+          lastChecked: new Date().toISOString()
+        });
       }
       return results;
     },

@@ -171,6 +171,18 @@ async function startServer() {
   app.use(morgan('dev'));
   app.use(express.json());
   
+  // Initialize monitoring service
+  const monitoringService = setupMonitoringService(config, db);
+  monitoringService.startMonitoring();
+  
+  // Initialize federation service
+  const federationService = setupFederationService(config, db);
+  federationService.startFederation();
+  
+  // Make services available to API routes
+  app.locals.monitoringService = monitoringService;
+  app.locals.federationService = federationService;
+  
   // Set up API routes
   setupApiRoutes(app, config, db);
   
@@ -190,14 +202,6 @@ async function startServer() {
     logger.info(`${LOGO} Web interface available at ${config.baseUrl}`);
     logger.info(`${LOGO} Instance name: ${config.name}`);
   });
-  
-  // Initialize monitoring service
-  const monitoringService = setupMonitoringService(config, db);
-  monitoringService.startMonitoring();
-  
-  // Initialize federation service
-  const federationService = setupFederationService(config, db);
-  federationService.startFederation();
   
   // Handle process termination
   process.on('SIGTERM', () => {

@@ -91,6 +91,36 @@ export const getPeers = async () => {
   }
 };
 
+// Get services for a specific peer
+export const getPeerServices = async (peerUrl: string) => {
+  try {
+    const encodedUrl = encodeURIComponent(peerUrl);
+    const response = await api.get(`/api/peers/${encodedUrl}/services`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to fetch services for peer ${peerUrl}`, error);
+    throw error;
+  }
+};
+
+// Service History API for dashboard history dots
+export const getServiceHistoryDots = async (url: string, count: number = 10) => {
+  try {
+    // Process URL for internationalized domain names
+    const processedUrl = processUrl(url);
+    const encodedUrl = encodeURIComponent(processedUrl);
+    const response = await api.get(`/api/services/${encodedUrl}/history/dots?count=${count}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to fetch history dots for service ${url}`, error);
+    // Return a default array of null values if the endpoint doesn't exist yet
+    return { 
+      success: true, 
+      data: Array(count).fill(null) 
+    };
+  }
+};
+
 // UI Config API
 export const getUiConfig = async () => {
   try {
