@@ -25,11 +25,7 @@ clean:
 	docker compose down -v
 	docker rmi bjishk
 
-deploy:
-	make pull
-	make build
-	make down
-	make up
+deploy: pull build down up
 
 deploy-prod:
 	ssh chol "cd ./bjishk && make deploy"
