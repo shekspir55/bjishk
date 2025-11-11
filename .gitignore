@@ -1,0 +1,62 @@
+# Binaries
+server/bjishk
+server/bjishk-old
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# Data and databases
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Test coverage
+*.out
+coverage.txt
+
+# Go workspace
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker
+.dockerignore
+
+# Build artifacts
+dist/
+build/
