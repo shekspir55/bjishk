@@ -3,23 +3,11 @@ name = "Bjishk Stepanavani"
 admin_email = "me@example.com"
 port = 3015
 base_url = "http://localhost:3015"
-notification_key = "random-string-for-coordination"
+max_days_logs = 30 # Keep logs for 30 days
 
-# Peer instances (just the URLs)
-peers = [
-  "http://թ.չոլ.հայ:3015/"
+peer_instances = [
+  "http://թ.չոլ.հայ:3015:email@gmail.com"
 ]
-
-# My services to monitor (URL is the unique identifier, names auto-fetched from page titles)
-[[services]]
-url = "https://թ.չոլ.հայ/"
-email = "me@example.com"
-check_interval = 300
-
-[[services]]
-url = "https://example.org"
-email = "me@example.com"
-check_interval = 120
 
 # Email for notifications
 [email]

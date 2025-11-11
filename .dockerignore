@@ -1,0 +1,29 @@
+# Git
+.git/
+.gitignore
+
+# Data
+data/
+*.db
+*.sqlite
+
+# Server artifacts (will be built in container)
+server/bjishk
+server/bjishk-old
+
+# Documentation
+*.md
+docs/
+plan.md
+Brainstorm.md
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

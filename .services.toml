@@ -1,0 +1,8 @@
+
+# My services to monitor (URL is the unique identifier, names auto-fetched from page titles)
+[[services]]
+url = "https://թ.չոլ.հայ/"
+check_interval = 300
+
+[[services]]
+url = "https://example.org"
