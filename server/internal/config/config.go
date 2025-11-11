@@ -123,11 +123,20 @@ func ParsePeerInstances(peerStrings []string) []PeerInstance {
 	var peers []PeerInstance
 
 	for _, peerStr := range peerStrings {
-		parts := strings.Split(peerStr, ":")
-		if len(parts) == 2 {
+		// Find the last colon to split URL and email
+		// This handles URLs with ports like http://example.com:3015:admin@example.com
+		lastColon := strings.LastIndex(peerStr, ":")
+		if lastColon == -1 {
+			continue
+		}
+
+		url := strings.TrimSpace(peerStr[:lastColon])
+		email := strings.TrimSpace(peerStr[lastColon+1:])
+
+		if url != "" && email != "" {
 			peers = append(peers, PeerInstance{
-				URL:        strings.TrimSpace(parts[0]),
-				AdminEmail: strings.TrimSpace(parts[1]),
+				URL:        url,
+				AdminEmail: email,
 			})
 		}
 	}

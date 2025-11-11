@@ -172,8 +172,6 @@ func (s *Service) StartMonitoring() {
 			}
 		}
 	}()
-
-	fmt.Printf("   🔄 Peer monitoring started (check every %d seconds)\n", s.config.PeerCheckInterval)
 }
 
 func (s *Service) checkAllPeers() {

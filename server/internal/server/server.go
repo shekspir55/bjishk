@@ -53,10 +53,6 @@ func (s *Server) Start() error {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	fmt.Printf("🌐 Starting HTTP server on port %d...\n", s.port)
-	fmt.Printf("✅ HTTP server listening on http://localhost:%d\n", s.port)
-	fmt.Printf("   Health endpoint: http://localhost:%d/api/health\n", s.port)
-
 	return s.httpServer.ListenAndServe()
 }
 

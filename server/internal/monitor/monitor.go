@@ -229,8 +229,6 @@ func (m *Monitor) StartMonitoring(service *models.Service) {
 			}
 		}
 	}(service)
-
-	fmt.Printf("   🔄 Monitoring started (check every %d seconds)\n", service.CheckInterval)
 }
 
 func (m *Monitor) StopAll() {

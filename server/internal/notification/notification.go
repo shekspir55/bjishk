@@ -40,11 +40,9 @@ func New(db *database.DB, config EmailConfig) *Service {
 func (s *Service) VerifyConnection() bool {
 	closer, err := s.dialer.Dial()
 	if err != nil {
-		fmt.Printf("   ⚠️  SMTP connection failed: %v\n", err)
 		return false
 	}
 	closer.Close()
-	fmt.Println("   ✅ SMTP connection verified")
 	return true
 }
 
@@ -108,8 +106,6 @@ func (s *Service) StartProcessing(adminEmail string) {
 			}
 		}
 	}()
-
-	fmt.Println("   📨 Started (checking every 30 seconds)")
 }
 
 func (s *Service) StopProcessing() {

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,7 +33,18 @@ func main() {
 	}
 
 	fmt.Println("\n📝 Loading services...")
+
+	// Get all existing services from DB
+	allServices, err := db.GetAllServices()
+	if err != nil {
+		log.Fatalf("❌ Failed to get services: %v\n", err)
+	}
+
+	// Build map of services from config
+	configServices := make(map[string]bool)
 	for _, serviceConfig := range servicesConfig.Services {
+		configServices[serviceConfig.URL] = true
+
 		existing, err := db.GetServiceByURL(serviceConfig.URL)
 		if err != nil {
 			log.Printf("   ⚠️  Error checking service: %v\n", err)
@@ -49,23 +61,51 @@ func main() {
 				log.Printf("   ⚠️  Failed to add service: %v\n", err)
 				continue
 			}
-			fmt.Printf("   ➕ Added service: %s (ID: %d)\n", service.URL, service.ID)
-		} else {
-			fmt.Printf("   ✓ Service already exists: %s\n", existing.URL)
+			fmt.Printf("   ➕ Added: %s\n", service.URL)
 		}
 	}
 
-	allServices, err := db.GetAllServices()
+	// Remove services not in config
+	for _, service := range allServices {
+		if !configServices[service.URL] {
+			if err := db.DeleteService(int(service.ID)); err != nil {
+				log.Printf("   ⚠️  Failed to delete service: %v\n", err)
+			} else {
+				fmt.Printf("   ➖ Removed: %s\n", service.URL)
+			}
+		}
+	}
+
+	// Refresh service list
+	allServices, err = db.GetAllServices()
 	if err != nil {
 		log.Fatalf("❌ Failed to get services: %v\n", err)
 	}
-	fmt.Printf("   Total services: %d\n", len(allServices))
+
+	if len(allServices) > 0 {
+		fmt.Println("   Services:")
+		for _, svc := range allServices {
+			fmt.Printf("     • %s\n", svc.URL)
+		}
+	} else {
+		fmt.Println("   No services configured")
+	}
 
 	// Initialize peer instances
-	fmt.Println("\n🌐 Initializing peer instances...")
+	fmt.Println("\n🌐 Peer instances...")
 	peerInstances := config.ParsePeerInstances(cfg.PeerInstances)
 
+	// Get all existing peers
+	allPeers, err := db.GetAllPeers()
+	if err != nil {
+		log.Fatalf("❌ Failed to get peers: %v\n", err)
+	}
+
+	// Build map of peers from config
+	configPeers := make(map[string]bool)
 	for _, peerConfig := range peerInstances {
+		configPeers[peerConfig.URL] = true
+
 		existing, err := db.GetPeerByURL(peerConfig.URL)
 		if err != nil {
 			log.Printf("   ⚠️  Error checking peer: %v\n", err)
@@ -78,20 +118,40 @@ func main() {
 				log.Printf("   ⚠️  Failed to add peer: %v\n", err)
 				continue
 			}
-			fmt.Printf("   ➕ Added peer: %s (%s)\n", peer.URL, peer.AdminEmail)
-		} else {
-			fmt.Printf("   ✓ Peer already exists: %s\n", existing.URL)
+			fmt.Printf("   ➕ Added: %s (%s)\n", peer.URL, peer.AdminEmail)
 		}
 	}
 
-	allPeers, err := db.GetAllPeers()
+	// Remove peers not in config
+	for _, peer := range allPeers {
+		if !configPeers[peer.URL] {
+			if err := db.DeletePeer(int(peer.ID)); err != nil {
+				log.Printf("   ⚠️  Failed to delete peer: %v\n", err)
+			} else {
+				fmt.Printf("   ➖ Removed: %s\n", peer.URL)
+			}
+		}
+	}
+
+	// Refresh peer list
+	allPeers, err = db.GetAllPeers()
 	if err != nil {
 		log.Fatalf("❌ Failed to get peers: %v\n", err)
 	}
-	fmt.Printf("   Total peers: %d\n", len(allPeers))
 
-	// Initialize notification service
-	fmt.Println("\n📧 Initializing notification service...")
+	if len(allPeers) > 0 {
+		fmt.Println("   Peers:")
+		for _, peer := range allPeers {
+			fmt.Printf("     • %s (%s)\n", peer.URL, peer.AdminEmail)
+		}
+	} else {
+		fmt.Println("   No peers configured")
+	}
+
+	// Initialize services
+	fmt.Println("\n⚙️  Initializing services...")
+
+	// Notification service
 	notifService := notification.New(db, notification.EmailConfig{
 		SMTPServer:   cfg.Email.SMTPServer,
 		SMTPPort:     cfg.Email.SMTPPort,
@@ -99,36 +159,35 @@ func main() {
 		SMTPPassword: cfg.Email.SMTPPassword,
 		FromEmail:    cfg.Email.FromEmail,
 	})
-	notifService.VerifyConnection()
+	if notifService.VerifyConnection() {
+		fmt.Println("   ✅ Email notifications")
+	} else {
+		fmt.Println("   ⚠️  Email notifications (SMTP failed)")
+	}
 
-	// Initialize service monitor
-	fmt.Println("\n🔍 Initializing service monitor...")
+	// Service monitor
 	serviceMonitor := monitor.New(db, monitor.MonitorConfig{
 		Retries:    cfg.Monitoring.MaxRetries,
-		RetryDelay: 2, // 2 seconds
+		RetryDelay: 2,
 		Timeout:    10,
 	})
-
-	// Start monitoring all services
 	for i := range allServices {
 		serviceMonitor.StartMonitoring(&allServices[i])
 	}
+	fmt.Printf("   ✅ Service monitoring (%d service%s)\n", len(allServices), plural(len(allServices)))
 
-	// Initialize federation service
-	fmt.Println("\n🌍 Initializing federation service...")
+	// Federation service
 	fedService := federation.New(db, federation.FederationConfig{
 		Retries:           cfg.Monitoring.MaxRetries,
 		RetryDelay:        2,
-		PeerCheckInterval: 60, // Check peers every 60 seconds
+		PeerCheckInterval: 60,
 	})
-
-	// Start peer monitoring
 	if len(allPeers) > 0 {
 		fedService.StartMonitoring()
+		fmt.Printf("   ✅ Peer monitoring (%d peer%s)\n", len(allPeers), plural(len(allPeers)))
 	}
 
-	// Start HTTP server for federation
-	fmt.Println("\n🚀 Starting HTTP server...")
+	// HTTP server
 	httpServer := server.New(fedService, cfg.Name, cfg.Port)
 	go func() {
 		if err := httpServer.Start(); err != nil {
@@ -136,35 +195,29 @@ func main() {
 		}
 	}()
 
-	// Start notification processing
-	fmt.Println("\n📨 Starting notification processing...")
-	notifService.StartProcessing(cfg.AdminEmail)
+	// Wait for server to start
+	time.Sleep(100 * time.Millisecond)
+	fmt.Printf("   ✅ HTTP server (port %d)\n", cfg.Port)
 
-	// Cleanup old logs daily
-	fmt.Println("\n🧹 Scheduling log cleanup...")
+	// Start background services
+	notifService.StartProcessing(cfg.AdminEmail)
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
-
 		for range ticker.C {
-			deleted, err := db.CleanupOldLogs(cfg.MaxDaysLogs)
-			if err != nil {
-				log.Printf("❌ Failed to cleanup logs: %v\n", err)
-			} else if deleted > 0 {
-				fmt.Printf("🧹 Cleaned up %d old log entries\n", deleted)
+			if deleted, err := db.CleanupOldLogs(cfg.MaxDaysLogs); err == nil && deleted > 0 {
+				log.Printf("🧹 Cleaned up %d old log entries\n", deleted)
 			}
 		}
 	}()
 
 	// Display peer connection string
-	fmt.Println("\n" + string([]rune{0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550}))
+	fmt.Println("\n" + strings.Repeat("═", 60))
 	fmt.Println("📡 PEER CONNECTION STRING")
-	fmt.Println(string([]rune{0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550}))
-	fmt.Printf("\nAdd this to other Bjishk instances' .bjishk.toml:\n\n")
-	fmt.Printf("  peer_instances = [\n")
-	fmt.Printf("    \"%s:%s\"\n", cfg.BaseURL, cfg.AdminEmail)
-	fmt.Printf("  ]\n")
-	fmt.Println("\n" + string([]rune{0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550, 0x2550}))
+	fmt.Println(strings.Repeat("═", 60))
+	fmt.Printf("\nAsk people to add this in their peer_instances:\n\n")
+	fmt.Printf("  %s:%d:%s\n", cfg.BaseURL, cfg.Port, cfg.AdminEmail)
+	fmt.Println("\n" + strings.Repeat("═", 60))
 
 	fmt.Println("\n✨ Bjishk is running! Press Ctrl+C to stop.\n")
 
@@ -192,6 +245,13 @@ func printHeader() {
 	fmt.Println("║           🏥 BJISHK v1.0             ║")
 	fmt.Println("║   Decentralized Health Monitoring    ║")
 	fmt.Println("╚═══════════════════════════════════════╝\n")
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 func initialize() (*config.Config, *database.DB, error) {

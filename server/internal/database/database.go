@@ -93,6 +93,10 @@ func (db *DB) UpdateService(id int, data map[string]interface{}) error {
 	return db.conn.Model(&models.Service{}).Where("id = ?", id).Updates(data).Error
 }
 
+func (db *DB) DeleteService(id int) error {
+	return db.conn.Delete(&models.Service{}, id).Error
+}
+
 // Peer operations
 func (db *DB) AddPeer(url, adminEmail string) (*models.Peer, error) {
 	peer := &models.Peer{
@@ -128,6 +132,10 @@ func (db *DB) GetAllPeers() ([]models.Peer, error) {
 
 func (db *DB) UpdatePeer(id int, data map[string]interface{}) error {
 	return db.conn.Model(&models.Peer{}).Where("id = ?", id).Updates(data).Error
+}
+
+func (db *DB) DeletePeer(id int) error {
+	return db.conn.Delete(&models.Peer{}, id).Error
 }
 
 // Notification operations
