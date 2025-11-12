@@ -1,4 +1,4 @@
-# BJISHK (բժիշկ)
+# 🩺 BJISHK (բժիշկ)
 
 > *բժիշկ* means "doctor" in Armenian
 
@@ -88,4 +88,4 @@ npm install && npm run build
 
 ## License
 
-MIT
+GPL-3.0

@@ -202,6 +202,12 @@ function App() {
           </table>
         </div>
       )}
+
+      <footer className="footer">
+        <a href="https://github.com/shekspir55/bjishk" target="_blank" rel="noopener noreferrer">
+          Contribute to bjishk 🔗
+        </a>
+      </footer>
     </div>
   )
 }
