@@ -2,75 +2,88 @@
 
 > *բժիշկ* means "doctor" in Armenian
 
-Lightweight, decentralized health monitoring. Services monitor each other peer-to-peer, sharing health status and alerts.
+Lightweight health monitoring for services and bjishk instances with a clean dashboard.
+
+![Bjishk monitoring bjishk instances](image/bjishkner.png)
 
 ## Features
 
-- 🔍 HTTP/HTTPS endpoint monitoring
-- 🌐 Peer-to-peer federation
-- 📧 Email notifications
-- 🚀 Single 9.8MB binary
-- 🐳 30MB Docker image
+- Monitor HTTP/HTTPS endpoints
+- Visual status history dashboard
+- Auto-refresh every 30s
+- Single 9.8MB Go binary
+- Docker support
 
 ## Quick Start
 
 ```bash
-# Binary
-wget https://github.com/yourusername/bjishk/releases/latest/download/bjishk
-chmod +x bjishk
-./bjishk
+# Run with Go
+cd server && go build -o ../bjishk ./cmd/bjishk && cd .. && ./bjishk
 
-# Docker
-docker-compose up -d
+# Run with Docker
+docker build -t bjishk .
+docker run -p 3015:3015 -v ./data:/app/data bjishk
 ```
 
 ## Configuration
 
-**`.bjishk.toml`:**
+**`bjishk.toml`:**
 ```toml
-name = "My Instance"
-admin_email = "admin@example.com"
+name = "Բժիշկ Ստեփանավանի"
+caregiver = "me@example.com"
 port = 3015
-base_url = "http://your-server.com"
+base_url = "http://localhost:3015"
+max_days_logs = 30
 
-peer_instances = [
-  "http://peer.example.com:3015:admin@peer.com"
-]
+[email]
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+smtp_user = "me@gmail.com"
+smtp_pass = "app-password-here"
+smtp_from = "me@gmail.com"
+smtp_tls = true
 
 [database]
 path = "./data/bjishk.sqlite"
 
-[email]
-smtp_server = "smtp.gmail.com"
-smtp_port = 587
-smtp_user = "your@email.com"
-smtp_password = "your-password"
-
 [monitoring]
 default_check_interval = 300
+retries = 3
+retry_delay = 10
+peer_check_interval = 60
+
+[ui]
+refresh_interval = 30
 ```
 
-**`.services.toml`:**
+**`patients.toml`:**
 ```toml
-[[services]]
-url = "https://example.com"
+[[patients]]
+url = "https://թ.չոլ.հայ/"
 check_interval = 300
+caregiver = ""  # Optional: email for notifications
+
+[[patients]]
+url = "http://localhost:3015/api/health"  # Other bjishk instances
+caregiver = "me@example.com"
 ```
 
 ## API
 
-```
-GET /api/health
-```
+`GET /api/health` - Instance status and stats
 
-Returns instance status and service statistics.
+`GET /api/patients?start=<ISO8601>&end=<ISO8601>` - Patient logs
+
+`GET /api/config` - UI configuration
 
 ## Build
 
 ```bash
 cd server
-make release    # 9.8MB binary
-make build      # dev build
+go build -ldflags="-s -w" -o ../bjishk ./cmd/bjishk  # 9.8MB
+
+cd ../client
+npm install && npm run build
 ```
 
 ## License
