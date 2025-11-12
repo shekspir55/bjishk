@@ -1,0 +1,232 @@
+* {
+  box-sizing: border-box;
+}
+
+.container {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+header {
+  margin-bottom: 2rem;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 0.5rem 0 0;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.filter-bar {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-bar label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+.filter-bar input {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  padding: 0.5rem;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+}
+
+.filter-bar button {
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.filter-bar button:hover {
+  background: #dc2626;
+}
+
+.error {
+  color: #ef4444;
+  padding: 2rem;
+  text-align: center;
+}
+
+.no-patients {
+  text-align: center;
+  padding: 3rem;
+  color: #64748b;
+  font-size: 1.1rem;
+}
+
+.table-container {
+  overflow-x: auto;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #1e293b;
+}
+
+.patients-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.patients-table thead {
+  background: #0f172a;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.patients-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #cbd5e1;
+  border-bottom: 2px solid #334155;
+  white-space: nowrap;
+}
+
+.patients-table th.service-col {
+  min-width: 200px;
+  position: sticky;
+  left: 0;
+  background: #0f172a;
+  z-index: 11;
+}
+
+.patients-table th.time-col {
+  min-width: 70px;
+  text-align: center;
+  font-size: 0.7rem;
+  padding: 0.5rem 0.3rem;
+}
+
+.time-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.time-date {
+  font-size: 0.65rem;
+  color: #94a3b8;
+}
+
+.time-time {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.patients-table tbody tr {
+  border-bottom: 1px solid #334155;
+}
+
+.patients-table tbody tr:hover {
+  background: #1e293b;
+}
+
+.patients-table td {
+  padding: 0.75rem 1rem;
+  border-right: 1px solid #334155;
+}
+
+.service-cell {
+  position: sticky;
+  left: 0;
+  background: #1e293b;
+  z-index: 5;
+  font-weight: 500;
+}
+
+.patients-table tbody tr:hover .service-cell {
+  background: #1e293b;
+}
+
+.service-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.service-link:hover {
+  color: #3b82f6;
+}
+
+.badge {
+  background: #3b82f6;
+  color: white;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-emoji {
+  margin-right: 0.5rem;
+  font-size: 1rem;
+}
+
+.emoji-badge {
+  margin-right: 0.5rem;
+  font-size: 1.1rem;
+}
+
+
+.status-cell {
+  padding: 0;
+  text-align: center;
+  min-width: 60px;
+  cursor: pointer;
+  position: relative;
+}
+
+.status-indicator {
+  width: 100%;
+  height: 100%;
+  min-height: 40px;
+}
+
+.status-cell:hover {
+  opacity: 0.8;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 768px) {
+  header h1 {
+    font-size: 2rem;
+  }
+
+  .patients-table {
+    font-size: 0.8rem;
+  }
+
+  .patients-table th.service-col {
+    min-width: 150px;
+  }
+
+}

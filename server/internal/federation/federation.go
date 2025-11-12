@@ -14,6 +14,7 @@ import (
 type HealthResponse struct {
 	Status            string `json:"status"`
 	InstanceName      string `json:"instance_name"`
+	InstanceType      string `json:"instance_type"`
 	Uptime            int64  `json:"uptime"`
 	ServicesMonitored int    `json:"services_monitored"`
 	ServicesUp        int    `json:"services_up"`
@@ -205,6 +206,7 @@ func (s *Service) GetHealthStatus(instanceName string) (*HealthResponse, error) 
 	return &HealthResponse{
 		Status:            "ok",
 		InstanceName:      instanceName,
+		InstanceType:      "bjishk",
 		Uptime:            uptime,
 		ServicesMonitored: stats.Total,
 		ServicesUp:        stats.Up,

@@ -10,6 +10,7 @@ type Service struct {
 	ID                  uint           `gorm:"primaryKey"`
 	URL                 string         `gorm:"uniqueIndex;not null"`
 	Name                *string        `gorm:"type:text"`
+	Caregiver           *string        `gorm:"type:text"`
 	CheckInterval       int            `gorm:"not null"`
 	LastCheck           *time.Time     `gorm:"type:datetime"`
 	Status              string         `gorm:"default:'unknown'"`

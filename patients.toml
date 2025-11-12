@@ -1,0 +1,13 @@
+# Patients to monitor - can be services or other bjishk instances
+[[patients]]
+url = "https://թ.չոլ.հայ/"
+check_interval = 300
+caregiver = ""  # Optional: notify this email when patient is down
+
+[[patients]]
+url = "https://example.org"
+caregiver = ""
+
+[[patients]]
+url = "http://localhost:3015/api/health"
+caregiver = "me@example.com"

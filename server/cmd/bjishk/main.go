@@ -26,13 +26,13 @@ func main() {
 	}
 	defer db.Close()
 
-	// Load and add services
-	servicesConfig, err := config.LoadServices()
+	// Load and add patients
+	patientsConfig, err := config.LoadPatients()
 	if err != nil {
-		log.Fatalf("❌ Failed to load services: %v\n", err)
+		log.Fatalf("❌ Failed to load patients: %v\n", err)
 	}
 
-	fmt.Println("\n📝 Loading services...")
+	fmt.Println("\n📝 Loading patients...")
 
 	// Get all existing services from DB
 	allServices, err := db.GetAllServices()
@@ -42,23 +42,27 @@ func main() {
 
 	// Build map of services from config
 	configServices := make(map[string]bool)
-	for _, serviceConfig := range servicesConfig.Services {
-		configServices[serviceConfig.URL] = true
+	for _, patientConfig := range patientsConfig.Patients {
+		configServices[patientConfig.URL] = true
 
-		existing, err := db.GetServiceByURL(serviceConfig.URL)
+		existing, err := db.GetServiceByURL(patientConfig.URL)
 		if err != nil {
-			log.Printf("   ⚠️  Error checking service: %v\n", err)
+			log.Printf("   ⚠️  Error checking patient: %v\n", err)
 			continue
 		}
 
 		if existing == nil {
 			checkInterval := cfg.Monitoring.DefaultCheckInterval
-			if serviceConfig.CheckInterval != nil {
-				checkInterval = *serviceConfig.CheckInterval
+			if patientConfig.CheckInterval != nil {
+				checkInterval = *patientConfig.CheckInterval
 			}
-			service, err := db.AddService(serviceConfig.URL, checkInterval, nil)
+			caregiver := patientConfig.Caregiver
+			if caregiver == "" {
+				caregiver = cfg.Caregiver
+			}
+			service, err := db.AddService(patientConfig.URL, checkInterval, &caregiver)
 			if err != nil {
-				log.Printf("   ⚠️  Failed to add service: %v\n", err)
+				log.Printf("   ⚠️  Failed to add patient: %v\n", err)
 				continue
 			}
 			fmt.Printf("   ➕ Added: %s\n", service.URL)
@@ -69,7 +73,7 @@ func main() {
 	for _, service := range allServices {
 		if !configServices[service.URL] {
 			if err := db.DeleteService(int(service.ID)); err != nil {
-				log.Printf("   ⚠️  Failed to delete service: %v\n", err)
+				log.Printf("   ⚠️  Failed to delete patient: %v\n", err)
 			} else {
 				fmt.Printf("   ➖ Removed: %s\n", service.URL)
 			}
@@ -83,69 +87,12 @@ func main() {
 	}
 
 	if len(allServices) > 0 {
-		fmt.Println("   Services:")
+		fmt.Println("   Patients:")
 		for _, svc := range allServices {
 			fmt.Printf("     • %s\n", svc.URL)
 		}
 	} else {
-		fmt.Println("   No services configured")
-	}
-
-	// Initialize peer instances
-	fmt.Println("\n🌐 Peer instances...")
-	peerInstances := config.ParsePeerInstances(cfg.PeerInstances)
-
-	// Get all existing peers
-	allPeers, err := db.GetAllPeers()
-	if err != nil {
-		log.Fatalf("❌ Failed to get peers: %v\n", err)
-	}
-
-	// Build map of peers from config
-	configPeers := make(map[string]bool)
-	for _, peerConfig := range peerInstances {
-		configPeers[peerConfig.URL] = true
-
-		existing, err := db.GetPeerByURL(peerConfig.URL)
-		if err != nil {
-			log.Printf("   ⚠️  Error checking peer: %v\n", err)
-			continue
-		}
-
-		if existing == nil {
-			peer, err := db.AddPeer(peerConfig.URL, peerConfig.AdminEmail)
-			if err != nil {
-				log.Printf("   ⚠️  Failed to add peer: %v\n", err)
-				continue
-			}
-			fmt.Printf("   ➕ Added: %s (%s)\n", peer.URL, peer.AdminEmail)
-		}
-	}
-
-	// Remove peers not in config
-	for _, peer := range allPeers {
-		if !configPeers[peer.URL] {
-			if err := db.DeletePeer(int(peer.ID)); err != nil {
-				log.Printf("   ⚠️  Failed to delete peer: %v\n", err)
-			} else {
-				fmt.Printf("   ➖ Removed: %s\n", peer.URL)
-			}
-		}
-	}
-
-	// Refresh peer list
-	allPeers, err = db.GetAllPeers()
-	if err != nil {
-		log.Fatalf("❌ Failed to get peers: %v\n", err)
-	}
-
-	if len(allPeers) > 0 {
-		fmt.Println("   Peers:")
-		for _, peer := range allPeers {
-			fmt.Printf("     • %s (%s)\n", peer.URL, peer.AdminEmail)
-		}
-	} else {
-		fmt.Println("   No peers configured")
+		fmt.Println("   No patients configured")
 	}
 
 	// Initialize services
@@ -174,7 +121,7 @@ func main() {
 	for i := range allServices {
 		serviceMonitor.StartMonitoring(&allServices[i])
 	}
-	fmt.Printf("   ✅ Service monitoring (%d service%s)\n", len(allServices), plural(len(allServices)))
+	fmt.Printf("   ✅ Patient monitoring (%d patient%s)\n", len(allServices), plural(len(allServices)))
 
 	// Federation service
 	fedService := federation.New(db, federation.FederationConfig{
@@ -182,13 +129,9 @@ func main() {
 		RetryDelay:        2,
 		PeerCheckInterval: 60,
 	})
-	if len(allPeers) > 0 {
-		fedService.StartMonitoring()
-		fmt.Printf("   ✅ Peer monitoring (%d peer%s)\n", len(allPeers), plural(len(allPeers)))
-	}
 
 	// HTTP server
-	httpServer := server.New(fedService, cfg.Name, cfg.Port)
+	httpServer := server.New(db, fedService, cfg.Name, cfg.Port, cfg.UI.RefreshInterval)
 	go func() {
 		if err := httpServer.Start(); err != nil {
 			log.Printf("❌ HTTP server error: %v\n", err)
@@ -200,7 +143,7 @@ func main() {
 	fmt.Printf("   ✅ HTTP server (port %d)\n", cfg.Port)
 
 	// Start background services
-	notifService.StartProcessing(cfg.AdminEmail)
+	notifService.StartProcessing(cfg.Caregiver)
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
@@ -215,8 +158,10 @@ func main() {
 	fmt.Println("\n" + strings.Repeat("═", 60))
 	fmt.Println("📡 PEER CONNECTION STRING")
 	fmt.Println(strings.Repeat("═", 60))
-	fmt.Printf("\nAsk people to add this in their peer_instances:\n\n")
-	fmt.Printf("  %s:%d:%s\n", cfg.BaseURL, cfg.Port, cfg.AdminEmail)
+	fmt.Printf("\nAsk people to add this in their patients.toml:\n\n")
+	fmt.Printf("  [[patients]]\n")
+	fmt.Printf("  url = \"%s/api/health\"\n", cfg.BaseURL)
+	fmt.Printf("  caregiver = \"%s\"\n", cfg.Caregiver)
 	fmt.Println("\n" + strings.Repeat("═", 60))
 
 	fmt.Println("\n✨ Bjishk is running! Press Ctrl+C to stop.\n")
@@ -263,7 +208,7 @@ func initialize() (*config.Config, *database.DB, error) {
 	}
 
 	fmt.Printf("   Instance: %s\n", cfg.Name)
-	fmt.Printf("   Admin: %s\n", cfg.AdminEmail)
+	fmt.Printf("   Caregiver: %s\n", cfg.Caregiver)
 	fmt.Printf("   Port: %d\n", cfg.Port)
 	fmt.Printf("   Database: %s\n", cfg.Database.Path)
 

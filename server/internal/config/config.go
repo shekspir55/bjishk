@@ -4,21 +4,20 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 )
 
 type Config struct {
-	Name        string   `toml:"name"`
-	AdminEmail  string   `toml:"admin_email"`
-	Port        int      `toml:"port"`
-	BaseURL     string   `toml:"base_url"`
-	MaxDaysLogs int      `toml:"max_days_logs"`
-	PeerInstances []string `toml:"peer_instances"`
-	Database    DatabaseConfig    `toml:"database"`
-	Email       EmailConfig       `toml:"email"`
-	Monitoring  MonitoringConfig  `toml:"monitoring"`
+	Name        string `toml:"name"`
+	Caregiver   string `toml:"caregiver"`
+	Port        int    `toml:"port"`
+	BaseURL     string `toml:"base_url"`
+	MaxDaysLogs int    `toml:"max_days_logs"`
+	Database    DatabaseConfig   `toml:"database"`
+	Email       EmailConfig      `toml:"email"`
+	Monitoring  MonitoringConfig `toml:"monitoring"`
+	UI          UIConfig         `toml:"ui"`
 }
 
 type DatabaseConfig struct {
@@ -40,22 +39,22 @@ type MonitoringConfig struct {
 	FailureThreshold     int `toml:"failure_threshold"`
 }
 
-type ServicesConfig struct {
-	Services []ServiceEntry `toml:"services"`
+type UIConfig struct {
+	RefreshInterval int `toml:"refresh_interval"`
 }
 
-type ServiceEntry struct {
-	URL           string  `toml:"url"`
-	CheckInterval *int    `toml:"check_interval"`
+type PatientsConfig struct {
+	Patients []PatientEntry `toml:"patients"`
 }
 
-type PeerInstance struct {
-	URL        string
-	AdminEmail string
+type PatientEntry struct {
+	URL           string `toml:"url"`
+	CheckInterval *int   `toml:"check_interval"`
+	Caregiver     string `toml:"caregiver"` // Optional: notify this email, defaults to server caregiver
 }
 
 func LoadConfig() (*Config, error) {
-	configPath := ".bjishk.toml"
+	configPath := "bjishk.toml"
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -71,8 +70,8 @@ func LoadConfig() (*Config, error) {
 	if config.Name == "" {
 		return nil, fmt.Errorf("missing required field: name")
 	}
-	if config.AdminEmail == "" {
-		return nil, fmt.Errorf("missing required field: admin_email")
+	if config.Caregiver == "" {
+		return nil, fmt.Errorf("missing required field: caregiver")
 	}
 	if config.Port == 0 {
 		return nil, fmt.Errorf("missing required field: port")
@@ -85,61 +84,33 @@ func LoadConfig() (*Config, error) {
 	if config.MaxDaysLogs == 0 {
 		config.MaxDaysLogs = 30
 	}
-	if config.PeerInstances == nil {
-		config.PeerInstances = []string{}
-	}
 
 	return &config, nil
 }
 
-func LoadServices() (*ServicesConfig, error) {
-	servicesPath := ".services.toml"
+func LoadPatients() (*PatientsConfig, error) {
+	patientsPath := "patients.toml"
 
-	data, err := os.ReadFile(servicesPath)
+	data, err := os.ReadFile(patientsPath)
 	if err != nil {
-		return nil, fmt.Errorf("services file not found: %s", servicesPath)
+		return nil, fmt.Errorf("patients file not found: %s", patientsPath)
 	}
 
-	var services ServicesConfig
-	if err := toml.Unmarshal(data, &services); err != nil {
-		return nil, fmt.Errorf("failed to parse services: %w", err)
+	var patients PatientsConfig
+	if err := toml.Unmarshal(data, &patients); err != nil {
+		return nil, fmt.Errorf("failed to parse patients: %w", err)
 	}
 
-	// Validate each service
-	for i, service := range services.Services {
-		if service.URL == "" {
-			return nil, fmt.Errorf("service %d missing required field: url", i)
+	// Validate each patient
+	for i, patient := range patients.Patients {
+		if patient.URL == "" {
+			return nil, fmt.Errorf("patient %d missing required field: url", i)
 		}
 		// Validate URL format
-		if _, err := url.Parse(service.URL); err != nil {
-			return nil, fmt.Errorf("invalid URL format: %s", service.URL)
+		if _, err := url.Parse(patient.URL); err != nil {
+			return nil, fmt.Errorf("invalid URL format: %s", patient.URL)
 		}
 	}
 
-	return &services, nil
-}
-
-func ParsePeerInstances(peerStrings []string) []PeerInstance {
-	var peers []PeerInstance
-
-	for _, peerStr := range peerStrings {
-		// Find the last colon to split URL and email
-		// This handles URLs with ports like http://example.com:3015:admin@example.com
-		lastColon := strings.LastIndex(peerStr, ":")
-		if lastColon == -1 {
-			continue
-		}
-
-		url := strings.TrimSpace(peerStr[:lastColon])
-		email := strings.TrimSpace(peerStr[lastColon+1:])
-
-		if url != "" && email != "" {
-			peers = append(peers, PeerInstance{
-				URL:        url,
-				AdminEmail: email,
-			})
-		}
-	}
-
-	return peers
+	return &patients, nil
 }

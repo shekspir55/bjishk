@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -83,7 +84,19 @@ func (m *Monitor) CheckService(service *models.Service) *CheckResult {
 			var title string
 			contentType := resp.Header.Get("Content-Type")
 
-			if regexp.MustCompile(`text/html`).MatchString(contentType) {
+			if regexp.MustCompile(`application/json`).MatchString(contentType) {
+				body, err := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				if err == nil {
+					var healthResp struct {
+						InstanceName string `json:"instance_name"`
+						InstanceType string `json:"instance_type"`
+					}
+					if json.Unmarshal(body, &healthResp) == nil && healthResp.InstanceType == "bjishk" {
+						title = healthResp.InstanceName
+					}
+				}
+			} else if regexp.MustCompile(`text/html`).MatchString(contentType) {
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if err == nil {
@@ -124,13 +137,27 @@ func (m *Monitor) CheckService(service *models.Service) *CheckResult {
 }
 
 func (m *Monitor) PerformCheck(service *models.Service) {
-	fmt.Printf("🔍 Checking service: %s\n", service.URL)
-
 	result := m.CheckService(service)
 	now := time.Now()
 
 	previousStatus := service.Status
 	newStatus := result.Status
+
+	// Log the check result
+	statusEmoji := "✅"
+	if newStatus == "down" {
+		statusEmoji = "❌"
+	} else if newStatus == "unknown" {
+		statusEmoji = "⚠️"
+	}
+
+	responseTimeStr := "-"
+	if result.ResponseTime > 0 {
+		responseTimeStr = fmt.Sprintf("%dms", result.ResponseTime)
+	}
+
+	timestamp := now.Format("15:04:05")
+	fmt.Printf("[%s] %s %s [%s]\n", timestamp, statusEmoji, service.URL, responseTimeStr)
 
 	consecutiveFailures := 0
 	if newStatus == "down" {
@@ -183,12 +210,6 @@ func (m *Monitor) PerformCheck(service *models.Service) {
 		if _, err := m.db.AddNotification(&serviceID, nil, msg); err != nil {
 			fmt.Printf("   ⚠️  Failed to create notification: %v\n", err)
 		}
-	}
-
-	if newStatus == "up" {
-		fmt.Printf("   ✅ UP (%dms)\n", result.ResponseTime)
-	} else {
-		fmt.Printf("   ❌ DOWN: %s\n", result.Error)
 	}
 }
 

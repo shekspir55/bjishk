@@ -23,7 +23,7 @@ func New(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	conn, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+	conn, err := gorm.Open(sqlite.Open(dbPath+"?_loc=auto"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
@@ -44,10 +44,10 @@ func (db *DB) Initialize() error {
 }
 
 // Service operations
-func (db *DB) AddService(url string, checkInterval int, name *string) (*models.Service, error) {
+func (db *DB) AddService(url string, checkInterval int, caregiver *string) (*models.Service, error) {
 	service := &models.Service{
 		URL:           url,
-		Name:          name,
+		Caregiver:     caregiver,
 		CheckInterval: checkInterval,
 		Status:        "unknown",
 	}
@@ -204,6 +204,33 @@ func (db *DB) CleanupOldLogs(maxDays int) (int64, error) {
 	cutoff := time.Now().AddDate(0, 0, -maxDays)
 	result := db.conn.Where("created_at < ?", cutoff).Delete(&models.Log{})
 	return result.RowsAffected, result.Error
+}
+
+func (db *DB) GetServiceLogs(serviceID int, limit int) ([]models.Log, error) {
+	var logs []models.Log
+	err := db.conn.Where("service_id = ?", serviceID).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&logs).Error
+	return logs, err
+}
+
+func (db *DB) GetServiceLogsWithDateRange(serviceID int, startDate, endDate *time.Time, limit int) ([]models.Log, error) {
+	var logs []models.Log
+	query := db.conn.Where("service_id = ?", serviceID)
+
+	if startDate != nil {
+		query = query.Where("created_at >= ?", startDate)
+	}
+	if endDate != nil {
+		query = query.Where("created_at <= ?", endDate)
+	}
+
+	err := query.Order("created_at DESC").
+		Limit(limit).
+		Find(&logs).Error
+
+	return logs, err
 }
 
 // Stats

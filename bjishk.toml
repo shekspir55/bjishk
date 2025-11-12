@@ -1,13 +1,9 @@
 # Basic instance setup
-name = "Bjishk Stepanavani"
-admin_email = "me@example.com"
+name = "Բժիշկ Ստեփանավանի"
+caregiver = "me@example.com"
 port = 3015
 base_url = "http://localhost:3015"
 max_days_logs = 30 # Keep logs for 30 days
-
-peer_instances = [
-  "http://թ.չոլ.հայ:3015:email@gmail.com"
-]
 
 # Email for notifications
 [email]
