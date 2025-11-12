@@ -2,7 +2,7 @@
 
 > *բժիշկ* means "doctor" in Armenian
 
-Lightweight health monitoring for services and bjishk instances with a clean dashboard.
+Decentralized health monitoring. Bjishk instances monitor websites and other bjishk instances.
 
 ![Bjishk monitoring bjishk instances](image/bjishkner.png)
 
